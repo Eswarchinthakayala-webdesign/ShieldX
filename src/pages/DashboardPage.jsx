@@ -257,9 +257,12 @@ const DashboardPage = () => {
         setSearchResults(data || []);
     };
 
-    const sendMessage = async (e) => {
-        e.preventDefault();
-        if (!newMessage.trim() || !selectedConversation) return;
+    const sendMessage = async (e, contentOverride = null) => {
+        if (e && e.preventDefault) e.preventDefault();
+        
+        const contentToSend = contentOverride !== null ? contentOverride : newMessage;
+
+        if (!contentToSend.trim() || !selectedConversation) return;
 
         setSending(true);
         try {
@@ -278,7 +281,7 @@ const DashboardPage = () => {
             }
 
             const encryptedPackage = await ShieldXCrypto.encryptMessage(
-                newMessage, 
+                contentToSend, 
                 recipientProfile.public_key
             );
 
@@ -300,10 +303,10 @@ const DashboardPage = () => {
 
             if (error) throw error;
             setNewMessage('');
-            setShowEmojiPicker(false);
+            setShowEmojiPicker(false); // Restore this
         } catch (error) {
-            toast.error(`Relay Failure: ${error.message}`);
-            console.error("LATTICE_ENCRYPTION_ERROR:", error);
+            console.error('Transmission Failed:', error);
+            toast.error(error.message);
         } finally {
             setSending(false);
         }
