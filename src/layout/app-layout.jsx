@@ -8,7 +8,8 @@ import ScrollToTop from '../components/ScrollToTop'
 
 const AppLayout = () => {
   const location = useLocation();
-  const hideShell = ['/docs', '/login', '/signup', '/dashboard', '/initialize-identity'].includes(location.pathname);
+  const hiddenPrefixes = ['/docs', '/login', '/signup', '/dashboard', '/initialize-identity'];
+  const hideShell = hiddenPrefixes.some(prefix => location.pathname === prefix || location.pathname.startsWith(prefix + '/'));
 
   return (
     <div className="bg-[#0a0a0a] min-h-screen text-white selection:bg-[#ff1e1e] selection:text-white flex flex-col">

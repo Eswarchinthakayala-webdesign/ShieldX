@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Menu, Lock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
     Sheet,
     SheetContent,
@@ -21,11 +22,14 @@ import {
 } from '../ui/alert-dialog';
 import Logo from '../landing-page/Logo';
 import { NAV_ITEMS } from '../../constants/dashboard';
+import NotificationPanel from './NotificationPanel';
 
-const MobileHeader = ({ mobileSheetOpen, setMobileSheetOpen, activeTab, handleTabChange, signOut, children }) => {
+const MobileHeader = ({ mobileSheetOpen, setMobileSheetOpen, activeTab, handleTabChange, signOut, children, user, conversations, selectedConversationId, onSelectConversation, onNavigateToMessages }) => {
+    const navigate = useNavigate();
+
     return (
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-black border-b border-white/5 z-30 shrink-0">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
                 <Logo className="w-8 h-8" />
                 <div>
                     <div className="text-xs font-black text-white uppercase tracking-tighter">ShieldX</div>
@@ -34,6 +38,14 @@ const MobileHeader = ({ mobileSheetOpen, setMobileSheetOpen, activeTab, handleTa
             </div>
             
             <div className="flex items-center gap-2">
+                <NotificationPanel 
+                    user={user}
+                    conversations={conversations || []}
+                    onSelectConversation={onSelectConversation}
+                    onNavigateToMessages={onNavigateToMessages}
+                    activeTab={activeTab}
+                    selectedConversationId={selectedConversationId}
+                />
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 
                 <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
@@ -47,7 +59,7 @@ const MobileHeader = ({ mobileSheetOpen, setMobileSheetOpen, activeTab, handleTa
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <Logo className="w-8 h-8" />
-                                    <SheetTitle className="text-sm font-black text-white uppercase tracking-tight">ShieldX_Nav</SheetTitle>
+                                    <SheetTitle className="text-sm font-black text-white uppercase tracking-tight">ShieldX</SheetTitle>
                                 </div>
                             </div>
                         </SheetHeader>

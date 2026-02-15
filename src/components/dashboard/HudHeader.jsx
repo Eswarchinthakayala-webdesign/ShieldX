@@ -1,7 +1,8 @@
 import React from 'react';
 import { Fingerprint } from 'lucide-react';
+import NotificationPanel from './NotificationPanel';
 
-const HudHeader = ({ user }) => {
+const HudHeader = ({ user, conversations, onSelectConversation, onNavigateToMessages, activeTab, selectedConversationId }) => {
     const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
     const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0];
 
@@ -19,6 +20,16 @@ const HudHeader = ({ user }) => {
             </div>
 
             <div className="flex items-center gap-4 lg:gap-6">
+                {/* Notification Bell */}
+                <NotificationPanel 
+                    user={user}
+                    conversations={conversations || []}
+                    onSelectConversation={onSelectConversation}
+                    onNavigateToMessages={onNavigateToMessages}
+                    activeTab={activeTab}
+                    selectedConversationId={selectedConversationId}
+                />
+
                 <div className="hidden lg:flex flex-col items-end">
                     <div className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Lattice_Coord</div>
                     <div className="text-xs font-mono text-[#ff1e1e]">0x7F...{user?.id?.slice(-4)}</div>

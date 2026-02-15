@@ -1,8 +1,10 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Settings,
   Search,
   Plus,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import supabase from '../utils/supabase';
@@ -21,8 +23,13 @@ import UsersTab from '../components/dashboard/UsersTab';
 import SettingsTab from '../components/dashboard/SettingsTab';
 
 const DashboardPage = () => {
+    const { tab, chatUser } = useParams();
+    const navigate = useNavigate();
+    const validTabs = ['stats', 'messages', 'users', 'settings'];
     const { user, signOut } = useAuth();
-    const [activeTab, setActiveTab] = useState('messages');
+    const [activeTab, setActiveTab] = useState(() => {
+        return validTabs.includes(tab) ? tab : 'messages';
+    });
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState(null);
     const [conversations, setConversations] = useState([]);
@@ -38,6 +45,7 @@ const DashboardPage = () => {
     const [isUnlocking, setIsUnlocking] = useState(false);
     const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [loadingMessages, setLoadingMessages] = useState(false);
     const messagesEndRef = useRef(null);
     const emojiPickerRef = useRef(null);
     const emojiButtonRef = useRef(null);
@@ -136,6 +144,9 @@ const DashboardPage = () => {
         // Flush stale messages immediately to prevent previous chat from flashing
         setMessages([]);
 
+        // Set loading state
+        setLoadingMessages(true);
+
         const decryptBuffer = async (msgs) => {
             const processed = await Promise.all(msgs.map(async (msg) => {
                 try {
@@ -155,6 +166,7 @@ const DashboardPage = () => {
                 }
             }));
             setMessages(processed);
+            setLoadingMessages(false);
         };
 
         const fetchMessages = async () => {
@@ -163,7 +175,11 @@ const DashboardPage = () => {
                 .select('*')
                 .eq('conversation_id', selectedConversation.id)
                 .order('created_at', { ascending: true });
-            if (data) decryptBuffer(data);
+            if (data) {
+                await decryptBuffer(data);
+            } else {
+                setLoadingMessages(false);
+            }
         };
 
         fetchMessages();
@@ -312,6 +328,41 @@ const DashboardPage = () => {
         }
     };
 
+    // Delete a single message
+    const deleteMessage = async (messageId) => {
+        try {
+            const { error } = await supabase
+                .from('messages')
+                .delete()
+                .eq('id', messageId);
+            
+            if (error) throw error;
+            setMessages(prev => prev.filter(m => m.id !== messageId));
+            toast.success('Payload purged from lattice.');
+        } catch (error) {
+            console.error('Delete Failed:', error);
+            toast.error('Failed to purge payload.');
+        }
+    };
+
+    // Clear all messages in current conversation
+    const clearChat = async () => {
+        if (!selectedConversation) return;
+        try {
+            const { error } = await supabase
+                .from('messages')
+                .delete()
+                .eq('conversation_id', selectedConversation.id);
+            
+            if (error) throw error;
+            setMessages([]);
+            toast.success('Tunnel history purged successfully.');
+        } catch (error) {
+            console.error('Clear Chat Failed:', error);
+            toast.error('Failed to purge tunnel history.');
+        }
+    };
+
     const sendRequest = async (receiverId) => {
         try {
             if (receiverId === user.id) return;
@@ -374,9 +425,71 @@ const DashboardPage = () => {
         }
     };
 
+    // Helper to slugify a name
+    const slugify = (name) => (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    // Helper to get the current user's display name
+    const getCurrentUsername = () => {
+        return slugify(
+            user?.user_metadata?.full_name || 
+            user?.user_metadata?.name || 
+            profile?.full_name || 
+            user?.email?.split('@')[0] || ''
+        );
+    };
+
+    // Helper to get the other user's name from a conversation
+    const getOtherUsername = (conv) => {
+        if (!conv || !user) return '';
+        const isUserOne = conv.user_one === user.id;
+        const otherProfile = isUserOne ? conv.user_two_profile : conv.user_one_profile;
+        return slugify(otherProfile?.full_name || otherProfile?.name || otherProfile?.email?.split('@')[0] || '');
+    };
+
+    // Build the chat slug: sender-to-receiver
+    const getChatSlug = (conv) => {
+        const me = getCurrentUsername();
+        const other = getOtherUsername(conv);
+        return `${me}-to-${other}`;
+    };
+
+    // Wrapper for selecting a conversation — also updates URL
+    const selectConversation = (conv) => {
+        setSelectedConversation(conv);
+        if (conv) {
+            const slug = getChatSlug(conv);
+            navigate(`/dashboard/messages/${slug}`, { replace: true });
+        } else {
+            navigate('/dashboard/messages', { replace: true });
+        }
+    };
+
+    // Auto-select conversation from URL on data load
+    useEffect(() => {
+        if (chatUser && conversations.length > 0 && !selectedConversation) {
+            const match = conversations.find(conv => {
+                const slug = getChatSlug(conv);
+                return slug === chatUser.toLowerCase();
+            });
+            // Fallback: try matching just the receiver part (after "-to-")
+            if (!match) {
+                const receiverPart = chatUser.toLowerCase().split('-to-').pop();
+                if (receiverPart) {
+                    const fallback = conversations.find(conv => {
+                        return getOtherUsername(conv) === receiverPart;
+                    });
+                    if (fallback) setSelectedConversation(fallback);
+                }
+            } else {
+                setSelectedConversation(match);
+            }
+        }
+    }, [chatUser, conversations]);
+
     const handleTabChange = (tabId) => {
         setActiveTab(tabId);
         setMobileSheetOpen(false);
+        navigate(`/dashboard/${tabId}`, { replace: true });
         if (tabId !== 'messages') {
             setSelectedConversation(null);
         }
@@ -384,7 +497,7 @@ const DashboardPage = () => {
 
     // ========== SHARED PANEL CONTENT ==========
     const renderLeftPanelContent = () => {
-        if (activeTab === 'dashboard') {
+        if (activeTab === 'stats') {
             return (
                 <div className="p-6 sm:p-8 text-center">
                     <Settings className="w-12 h-12 text-white/10 mx-auto mb-6" />
@@ -457,7 +570,7 @@ const DashboardPage = () => {
                                 return (
                                     <button 
                                         key={conv.id}
-                                        onClick={() => { setSelectedConversation(conv); setMobileSheetOpen(false); }}
+                                        onClick={() => { selectConversation(conv); setMobileSheetOpen(false); }}
                                         className={`w-full p-3 sm:p-4 rounded-2xl border transition-all text-left group
                                             ${selectedConversation?.id === conv.id 
                                                 ? 'bg-[#ff1e1e]/5 border-[#ff1e1e]/20' 
@@ -488,10 +601,22 @@ const DashboardPage = () => {
                         )}
 
                         {conversations.length === 0 && !loading && (
-                            <div className="text-center py-12 sm:py-20 px-6">
-                                <div className="text-[10px] font-black text-white/20 uppercase tracking-widest leading-relaxed">
-                                    No authenticated tunnels detected. Use Node Discovery to link new shards.
+                            <div className="text-center py-10 sm:py-16 px-6">
+                                <div className="w-16 h-16 rounded-2xl bg-[#ff1e1e]/5 border border-[#ff1e1e]/10 flex items-center justify-center mx-auto mb-5">
+                                    <MessageSquare size={24} className="text-[#ff1e1e]/40" />
                                 </div>
+                                <div className="text-sm font-black text-white/40 uppercase tracking-wider mb-2">
+                                    No Active Tunnels
+                                </div>
+                                <div className="text-[10px] text-white/20 uppercase tracking-wider leading-relaxed mb-6 max-w-[200px] mx-auto">
+                                    Connect with other nodes to start encrypted communication
+                                </div>
+                                <button 
+                                    onClick={() => handleTabChange('users')}
+                                    className="px-5 py-2.5 bg-[#ff1e1e] text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,30,30,0.2)]"
+                                >
+                                    Discover Nodes
+                                </button>
                             </div>
                         )}
                     </div>
@@ -617,6 +742,15 @@ const DashboardPage = () => {
                 handleTabChange={handleTabChange}
                 signOut={signOut}
                 user={user}
+                conversations={conversations}
+                selectedConversationId={selectedConversation?.id}
+                onSelectConversation={(conv) => {
+                    selectConversation(conv);
+                    setMobileSheetOpen(false);
+                }}
+                onNavigateToMessages={() => {
+                    handleTabChange('messages');
+                }}
             >
                 {renderLeftPanelContent()}
             </MobileHeader>
@@ -630,7 +764,18 @@ const DashboardPage = () => {
 
             {/* ========== MAIN INTERFACE ========== */}
             <main className="flex-1 flex flex-col relative min-h-0">
-                <HudHeader user={user} />
+                <HudHeader 
+                    user={user} 
+                    conversations={conversations}
+                    activeTab={activeTab}
+                    selectedConversationId={selectedConversation?.id}
+                    onSelectConversation={(conv) => {
+                        selectConversation(conv);
+                    }}
+                    onNavigateToMessages={() => {
+                        handleTabChange('messages');
+                    }}
+                />
 
                 <div className="flex-1 flex overflow-hidden min-h-0">
                     {/* ===== MESSAGES TAB ===== */}
@@ -638,7 +783,7 @@ const DashboardPage = () => {
                         <ChatView
                             user={user}
                             selectedConversation={selectedConversation}
-                            setSelectedConversation={setSelectedConversation}
+                            setSelectedConversation={selectConversation}
                             messages={messages}
                             messagesEndRef={messagesEndRef}
                             newMessage={newMessage}
@@ -651,11 +796,16 @@ const DashboardPage = () => {
                             emojiPickerRef={emojiPickerRef}
                             emojiButtonRef={emojiButtonRef}
                             renderLeftPanelContent={renderLeftPanelContent}
+                            conversations={conversations}
+                            onDiscoverNodes={() => handleTabChange('users')}
+                            loadingMessages={loadingMessages}
+                            deleteMessage={deleteMessage}
+                            clearChat={clearChat}
                         />
                     )}
 
                     {/* ===== DASHBOARD TAB ===== */}
-                    {activeTab === 'dashboard' && (
+                    {activeTab === 'stats' && (
                         <DashboardTab 
                             renderLeftPanelContent={renderLeftPanelContent} 
                             activeConnections={conversations.length}

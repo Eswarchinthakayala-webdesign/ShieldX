@@ -1,7 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Terminal, Lock, ChevronLeft, Zap, Send, Smile, Mic, X, Check, Play, Pause } from 'lucide-react';
+import { Terminal, Lock, ChevronLeft, Zap, Send, Smile, Mic, X, Check, Play, Pause, MessageSquare, Users, Trash2, MoreVertical, AlertTriangle } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
+import Logo from '../landing-page/Logo';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '../ui/alert-dialog';
 
 const isEmojiOnly = (text) => {
     if (!text) return false;
@@ -150,12 +161,25 @@ const ChatView = ({
     emojiPickerRef,
     emojiButtonRef,
     renderLeftPanelContent,
+    conversations,
+    onDiscoverNodes,
+    loadingMessages,
+    deleteMessage,
+    clearChat,
 }) => {
     // Voice Recording State
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
+
+    // Context menu for delete
+    const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, messageId: null, isMine: false });
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
+    const longPressTimer = useRef(null);
+    const contextMenuRef = useRef(null);
 
     useEffect(() => {
         let interval;
@@ -222,6 +246,55 @@ const ChatView = ({
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
+    // Close context menu on outside click
+    useEffect(() => {
+        const handleClick = () => setContextMenu(prev => ({ ...prev, visible: false }));
+        if (contextMenu.visible) {
+            document.addEventListener('mousedown', handleClick);
+            document.addEventListener('touchstart', handleClick);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClick);
+            document.removeEventListener('touchstart', handleClick);
+        };
+    }, [contextMenu.visible]);
+
+    // Long press handlers for mobile
+    const handleTouchStart = (msg) => {
+        longPressTimer.current = setTimeout(() => {
+            // Use center of screen for mobile context menu
+            setDeleteTarget(msg);
+            setDeleteDialogOpen(true);
+        }, 500);
+    };
+
+    const handleTouchEnd = () => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+    };
+
+    // Right click handler for desktop
+    const handleContextMenu = (e, msg) => {
+        // Only allow deleting your own messages
+        if (msg.sender_id !== user.id) return;
+        e.preventDefault();
+        setContextMenu({
+            visible: true,
+            x: e.clientX,
+            y: e.clientY,
+            messageId: msg.id,
+            isMine: msg.sender_id === user.id
+        });
+    };
+
+    const confirmDelete = (msg) => {
+        setDeleteTarget(msg);
+        setDeleteDialogOpen(true);
+        setContextMenu(prev => ({ ...prev, visible: false }));
+    };
+
     return (
         <>
             {/* Left Panel */}
@@ -235,7 +308,6 @@ const ChatView = ({
                     <div className="flex-1 flex flex-col bg-black/40 backdrop-blur-3xl min-h-0 overflow-hidden">
                         {/* Header */}
                         <div className="p-3 sm:p-4 lg:p-6 border-b border-white/5 flex items-center justify-between bg-black/20 shrink-0">
-                             {/* ... Header Content (Same as before) ... */}
                              <div className="flex items-center gap-3 lg:gap-4">
                                 <button onClick={() => setSelectedConversation(null)} className="md:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white transition-all"><ChevronLeft size={16} /></button>
                                 <div className="flex items-center gap-3">
@@ -246,10 +318,44 @@ const ChatView = ({
                                     </div>
                                 </div>
                             </div>
+                            {/* Clear Chat Button */}
+                            <button 
+                                onClick={() => setClearChatDialogOpen(true)}
+                                className="p-2 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 text-white/20 hover:text-[#ff1e1e] transition-all group"
+                                title="Clear Chat"
+                            >
+                                <Trash2 size={16} className="group-hover:scale-110 transition-transform" />
+                            </button>
                         </div>
 
                         {/* Messages */}
                         <div id="message-thread" className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 scroll-smooth">
+                            {loadingMessages ? (
+                                <div className="flex flex-1 flex-col items-center justify-center h-full">
+                                    <motion.div
+                                        animate={{ 
+                                            rotate: 360,
+                                            scale: [1, 1.1, 1]
+                                        }}
+                                        transition={{ 
+                                            rotate: { duration: 3, repeat: Infinity, ease: 'linear' },
+                                            scale: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' }
+                                        }}
+                                        className="mb-6"
+                                    >
+                                        <Logo className="w-14 h-14 drop-shadow-[0_0_15px_rgba(255,30,30,0.3)]" />
+                                    </motion.div>
+                                    <motion.div 
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: [0.3, 0.7, 0.3] }}
+                                        transition={{ duration: 2, repeat: Infinity }}
+                                        className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]"
+                                    >
+                                        Decrypting_Tunnel...
+                                    </motion.div>
+                                </div>
+                            ) : (
+                            <>
                             {messages.map((msg, i) => {
                                 const currentDateLabel = getDateLabel(msg.created_at);
                                 const prevDateLabel = i > 0 ? getDateLabel(messages[i-1].created_at) : null;
@@ -268,10 +374,16 @@ const ChatView = ({
                                             animate={{ opacity: 1, x: 0 }}
                                             className={`flex ${msg.sender_id === user.id ? 'justify-end' : 'justify-start'}`}
                                         >
-                                            <div className={`max-w-[85%] sm:max-w-[70%] group ${msg.sender_id === user.id ? 'items-end' : 'items-start'} flex flex-col gap-1 sm:gap-2`}>
+                                            <div 
+                                                className={`max-w-[85%] sm:max-w-[70%] group ${msg.sender_id === user.id ? 'items-end' : 'items-start'} flex flex-col gap-1 sm:gap-2 relative`}
+                                                onContextMenu={(e) => handleContextMenu(e, msg)}
+                                                onTouchStart={() => msg.sender_id === user.id && handleTouchStart(msg)}
+                                                onTouchEnd={handleTouchEnd}
+                                                onTouchMove={handleTouchEnd}
+                                            >
                                                 <motion.div 
                                                     {...(!isAudio ? getEmojiProps(msg.content) : {})}
-                                                    className={`rounded-2xl font-mono leading-relaxed break-all flex items-center justify-center
+                                                    className={`rounded-2xl font-mono leading-relaxed break-all flex items-center justify-center relative
                                                     ${isEmojiOnly(msg.content) && !isAudio
                                                         ? 'bg-transparent px-0 py-0 shadow-none border-none origin-center' 
                                                         : `px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base ${msg.sender_id === user.id 
@@ -300,6 +412,8 @@ const ChatView = ({
                                 );
                             })}
                             <div ref={messagesEndRef} />
+                            </>
+                            )}
                         </div>
 
                         {/* Composer */}
@@ -393,13 +507,142 @@ const ChatView = ({
                             </div>
                         </form>
                     </div>
-                ) : (
-                    <div className="hidden md:flex flex-1 flex-col items-center justify-center opacity-20">
-                        <Terminal size={48} className="mb-4" />
-                        <div className="text-[10px] font-black uppercase tracking-[0.3em]">Select_A_Tunnel</div>
+                ) : conversations && conversations.length === 0 ? (
+                    <div className="flex flex-1 flex-col items-center justify-center px-6">
+                        <div className="w-20 h-20 rounded-3xl bg-[#ff1e1e]/5 border border-[#ff1e1e]/10 flex items-center justify-center mx-auto mb-6">
+                            <MessageSquare size={32} className="text-[#ff1e1e]/30" />
+                        </div>
+                        <div className="text-base font-black text-white/30 uppercase tracking-wider mb-2">
+                            No Active Tunnels
+                        </div>
+                        <div className="text-[10px] text-white/15 uppercase tracking-wider leading-relaxed mb-6 max-w-[220px] text-center">
+                            Connect with other nodes to start encrypted communication
+                        </div>
+                        <button 
+                            onClick={onDiscoverNodes}
+                            className="px-6 py-3 bg-[#ff1e1e] text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,30,30,0.2)] flex items-center gap-2"
+                        >
+                            <Users size={14} />
+                            Discover Nodes
+                        </button>
                     </div>
+                ) : (
+                    <>
+                        {/* Mobile: show conversation list */}
+                        <div className="md:hidden flex-1 flex flex-col overflow-y-auto min-h-0">
+                            {renderLeftPanelContent()}
+                        </div>
+                        {/* Desktop: show Select Tunnel prompt */}
+                        <div className="hidden md:flex flex-1 flex-col items-center justify-center opacity-20">
+                            <Terminal size={48} className="mb-4" />
+                            <div className="text-[10px] font-black uppercase tracking-[0.3em]">Select_A_Tunnel</div>
+                        </div>
+                    </>
                 )}
             </div>
+
+            {/* ===== Context Menu (desktop right-click) ===== */}
+            <AnimatePresence>
+                {contextMenu.visible && (
+                    <motion.div
+                        ref={contextMenuRef}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden min-w-[160px]"
+                        style={{ left: contextMenu.x, top: contextMenu.y }}
+                    >
+                        <button
+                            onClick={() => {
+                                const msg = messages.find(m => m.id === contextMenu.messageId);
+                                if (msg) confirmDelete(msg);
+                            }}
+                            className="w-full px-4 py-3 flex items-center gap-3 text-[#ff1e1e] hover:bg-[#ff1e1e]/10 transition-colors text-left"
+                        >
+                            <Trash2 size={14} />
+                            <span className="text-[11px] font-bold uppercase tracking-wider">Delete_Message</span>
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ===== Delete Message Alert Dialog ===== */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent className="bg-[#0d0d0d] border border-white/10 rounded-2xl max-w-md">
+                    <AlertDialogHeader>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-10 h-10 rounded-xl bg-[#ff1e1e]/10 border border-[#ff1e1e]/20 flex items-center justify-center">
+                                <AlertTriangle size={20} className="text-[#ff1e1e]" />
+                            </div>
+                            <AlertDialogTitle className="text-white font-black uppercase tracking-wider text-sm">
+                                Purge_Payload
+                            </AlertDialogTitle>
+                        </div>
+                        <AlertDialogDescription className="text-white/50 text-xs leading-relaxed space-y-3">
+                            <p>This message will be permanently deleted from the encrypted lattice. This action is <span className="text-[#ff1e1e] font-bold">irreversible</span>.</p>
+                            <div className="bg-[#ff1e1e]/5 border border-[#ff1e1e]/10 rounded-xl p-3 mt-2">
+                                <div className="text-[9px] font-black text-[#ff1e1e]/60 uppercase tracking-widest mb-1">⚠️ Disclaimer</div>
+                                <p className="text-[10px] text-white/40 leading-relaxed">
+                                    The message will be removed from the server. However, the recipient may have already decrypted and read this message. ShieldX cannot guarantee removal from their local cache or device memory.
+                                </p>
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 sm:gap-3">
+                        <AlertDialogCancel className="bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 text-[10px] font-bold uppercase tracking-wider rounded-xl px-5">
+                            Abort
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (deleteTarget) deleteMessage(deleteTarget.id);
+                                setDeleteTarget(null);
+                            }}
+                            className="bg-[#ff1e1e] hover:bg-[#ff1e1e]/80 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl px-5 border-0"
+                        >
+                            Confirm_Purge
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* ===== Clear Chat Alert Dialog ===== */}
+            <AlertDialog open={clearChatDialogOpen} onOpenChange={setClearChatDialogOpen}>
+                <AlertDialogContent className="bg-[#0d0d0d] border border-white/10 rounded-2xl max-w-md">
+                    <AlertDialogHeader>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-10 h-10 rounded-xl bg-[#ff1e1e]/10 border border-[#ff1e1e]/20 flex items-center justify-center">
+                                <AlertTriangle size={20} className="text-[#ff1e1e]" />
+                            </div>
+                            <AlertDialogTitle className="text-white font-black uppercase tracking-wider text-sm">
+                                Purge_Tunnel_History
+                            </AlertDialogTitle>
+                        </div>
+                        <AlertDialogDescription className="text-white/50 text-xs leading-relaxed space-y-3">
+                            <p>All <span className="text-white font-bold">{messages.length} message{messages.length !== 1 ? 's' : ''}</span> in this tunnel will be permanently destroyed. This action is <span className="text-[#ff1e1e] font-bold">irreversible</span>.</p>
+                            <div className="bg-[#ff1e1e]/5 border border-[#ff1e1e]/10 rounded-xl p-3 mt-2">
+                                <div className="text-[9px] font-black text-[#ff1e1e]/60 uppercase tracking-widest mb-1">⚠️ Security Disclaimer</div>
+                                <p className="text-[10px] text-white/40 leading-relaxed">
+                                    All encrypted payloads will be removed from the ShieldX server. The other party will also lose access to these messages. However, previously decrypted content may remain in device memory or browser cache. ShieldX uses end-to-end encryption — once purged, these messages cannot be recovered by anyone, including ShieldX.
+                                </p>
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 sm:gap-3">
+                        <AlertDialogCancel className="bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 text-[10px] font-bold uppercase tracking-wider rounded-xl px-5">
+                            Abort
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                clearChat();
+                                setClearChatDialogOpen(false);
+                            }}
+                            className="bg-[#ff1e1e] hover:bg-[#ff1e1e]/80 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl px-5 border-0"
+                        >
+                            Purge_All_Messages
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 };

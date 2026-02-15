@@ -27,6 +27,14 @@ const router=createBrowserRouter([
         element: <ProtectedRoute><DashboardPage /></ProtectedRoute>
       },
       {
+        path: "/dashboard/:tab",
+        element: <ProtectedRoute><DashboardPage /></ProtectedRoute>
+      },
+      {
+        path: "/dashboard/:tab/:chatUser",
+        element: <ProtectedRoute><DashboardPage /></ProtectedRoute>
+      },
+      {
         path: "/protocol",
         element: <ProtectedRoute><ProtocolPage /></ProtectedRoute>
       },
