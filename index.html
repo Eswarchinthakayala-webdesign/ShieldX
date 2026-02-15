@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <title>ShieldX | Fortified Messaging Infrastructure</title>
+    <meta name="description" content="ShieldX leverages hybrid cryptography combining asymmetric key exchange with symmetric AES encryption to deliver uncompromising end-to-end secure communication." />
+    <meta name="keywords" content="encryption, secure messaging, hybrid cryptography, AES-256, RSA-4096, privacy, shieldx" />
+    <meta name="theme-color" content="#0a0a0a" />
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ShieldX | Fortified Messaging Infrastructure" />
+    <meta property="og:description" content="End-to-End Hybrid Encrypted Messaging Built for Absolute Privacy." />
+    <meta property="og:image" content="/logo.svg" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+      :root {
+        --background: #0a0a0a;
+        --primary: #ff1e1e;
+      }
+      
+      body {
+        background-color: var(--background);
+        margin: 0;
+        font-family: 'Inter', sans-serif;
+        color: white;
+        overflow-x: hidden;
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      /* High-Fidelity Logo Loader */
+      .initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0a0a0a;
+        z-index: 9999;
+        transition: opacity 0.5s ease-out;
+      }
+
+      .logo-loader {
+        width: 100px;
+        height: 100px;
+        filter: drop-shadow(0 0 20px rgba(255, 30, 30, 0.3));
+      }
+
+      .spinning-x {
+        transform-origin: 50px 50px;
+        animation: tactical-spin 2s infinite linear;
+      }
+
+      @keyframes tactical-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .outer-shield {
+        animation: pulse-glow 3s infinite ease-in-out;
+      }
+
+      @keyframes pulse-glow {
+        0%, 100% { opacity: 0.6; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.02); }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="initial-loader" id="loader">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-loader">
+          <!-- Outer Hexagon Shield Frame -->
+          <path 
+            d="M50 5L90 25V75L50 95L10 75V25L50 5Z" 
+            stroke="#ff1e1e" 
+            stroke-width="2" 
+            stroke-linejoin="round"
+            class="outer-shield"
+          />
+          
+          <!-- Inner Glowing Core -->
+          <path 
+            d="M50 20L75 32.5V67.5L50 80L25 67.5V32.5L50 20Z" 
+            fill="#ff1e1e"
+            fill-opacity="0.2"
+          />
+          
+          <!-- Geometric "X" Integration (Spinning) -->
+          <g class="spinning-x">
+            <path 
+              d="M35 35L65 65M65 35L35 65" 
+              stroke="#ff1e1e" 
+              stroke-width="4" 
+              stroke-linecap="round"
+            />
+          </g>
+          
+          <!-- Tech Accents -->
+          <circle cx="50" cy="5" r="2" fill="#ff1e1e" />
+          <circle cx="50" cy="95" r="2" fill="#ff1e1e" />
+          <circle cx="10" cy="25" r="2" fill="#ff1e1e" />
+          <circle cx="90" cy="25" r="2" fill="#ff1e1e" />
+          <circle cx="10" cy="75" r="2" fill="#ff1e1e" />
+          <circle cx="90" cy="75" r="2" fill="#ff1e1e" />
+        </svg>
+      </div>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      window.addEventListener('load', () => {
+        const loader = document.getElementById('loader');
+        if (loader) {
+          loader.style.opacity = '0';
+          setTimeout(() => loader.remove(), 500);
+        }
+      });
+    </script>
+  </body>
+</html>
+
+
