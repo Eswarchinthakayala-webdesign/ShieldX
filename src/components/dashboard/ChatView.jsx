@@ -374,6 +374,25 @@ const ChatView = ({
                                             animate={{ opacity: 1, x: 0 }}
                                             className={`flex ${msg.sender_id === user.id ? 'justify-end' : 'justify-start'}`}
                                         >
+                                            {msg.isDeleted ? (
+                                                /* Deleted message placeholder */
+                                                <div className={`max-w-[85%] sm:max-w-[70%] flex flex-col gap-1 sm:gap-2 ${msg.sender_id === user.id ? 'items-end' : 'items-start'}`}>
+                                                    <div className={`rounded-2xl px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-2 border border-dashed
+                                                        ${msg.sender_id === user.id 
+                                                            ? 'bg-white/[0.02] border-white/10 rounded-tr-none' 
+                                                            : 'bg-white/[0.02] border-white/10 rounded-tl-none'
+                                                        }`}
+                                                    >
+                                                        <span className="text-white/15 text-base">🚫</span>
+                                                        <span className="text-[11px] sm:text-xs text-white/25 italic font-mono tracking-wide">
+                                                            {msg.sender_id === user.id ? 'You deleted this message' : 'This message was deleted'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[10px] sm:text-xs font-mono text-white/10 uppercase px-1">
+                                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
+                                            ) : (
                                             <div 
                                                 className={`max-w-[85%] sm:max-w-[70%] group ${msg.sender_id === user.id ? 'items-end' : 'items-start'} flex flex-col gap-1 sm:gap-2 relative`}
                                                 onContextMenu={(e) => handleContextMenu(e, msg)}
@@ -407,6 +426,7 @@ const ChatView = ({
                                                     {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             </div>
+                                            )}
                                         </motion.div>
                                     </React.Fragment>
                                 );

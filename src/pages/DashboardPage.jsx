@@ -149,6 +149,10 @@ const DashboardPage = () => {
 
         const decryptBuffer = async (msgs) => {
             const processed = await Promise.all(msgs.map(async (msg) => {
+                // Handle soft-deleted messages
+                if (!msg.encrypted_message) {
+                    return { ...msg, content: null, isDeleted: true };
+                }
                 try {
                     const keyShard = msg.sender_id === user.id ? msg.encrypted_aes_key_sender : msg.encrypted_aes_key;
                     
@@ -225,6 +229,23 @@ const DashboardPage = () => {
                 });
             })
             .on('postgres_changes', { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'messages',
+                filter: `conversation_id=eq.${selectedConversation.id}`
+            }, (payload) => {
+                const updated = payload.new;
+                if (updated && updated.encrypted_message === null) {
+                    // Message was soft-deleted
+                    console.log("Lattice Payload Purged:", updated.id);
+                    setMessages(prev => prev.map(m => 
+                        m.id === updated.id 
+                            ? { ...m, content: null, isDeleted: true } 
+                            : m
+                    ));
+                }
+            })
+            .on('postgres_changes', { 
                 event: 'DELETE', 
                 schema: 'public', 
                 table: 'messages',
@@ -232,7 +253,7 @@ const DashboardPage = () => {
             }, (payload) => {
                 const deletedId = payload.old?.id;
                 if (deletedId) {
-                    console.log("Lattice Payload Purged:", deletedId);
+                    console.log("Lattice Payload Hard Purged:", deletedId);
                     setMessages(prev => prev.filter(m => m.id !== deletedId));
                 }
             })
@@ -340,16 +361,25 @@ const DashboardPage = () => {
         }
     };
 
-    // Delete a single message
+    // Soft-delete a single message (nullify content, keep row as placeholder)
     const deleteMessage = async (messageId) => {
         try {
             const { error } = await supabase
                 .from('messages')
-                .delete()
+                .update({ 
+                    encrypted_message: null, 
+                    encrypted_aes_key: null, 
+                    encrypted_aes_key_sender: null, 
+                    iv: null 
+                })
                 .eq('id', messageId);
             
             if (error) throw error;
-            setMessages(prev => prev.filter(m => m.id !== messageId));
+            setMessages(prev => prev.map(m => 
+                m.id === messageId 
+                    ? { ...m, content: null, isDeleted: true } 
+                    : m
+            ));
             toast.success('Payload purged from lattice.');
         } catch (error) {
             console.error('Delete Failed:', error);

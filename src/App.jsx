@@ -13,6 +13,7 @@ import InitializeIdentityPage from './pages/InitializeIdentityPage'
 import DashboardPage from './pages/DashboardPage'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import PublicRoute from './components/PublicRoute'
 
 const router=createBrowserRouter([
   {
@@ -60,11 +61,11 @@ const router=createBrowserRouter([
       },
       {
         path: "/login",
-        element: <LoginPage />
+        element: <PublicRoute><LoginPage /></PublicRoute>
       },
       {
         path: "/signup",
-        element: <SignupPage />
+        element: <PublicRoute><SignupPage /></PublicRoute>
       },
       {
         path: "/initialize-identity",
