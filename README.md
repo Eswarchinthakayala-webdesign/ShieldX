@@ -60,9 +60,9 @@ ShieldX uses EmailJS to send welcome emails and recovery details.
 The configuration is located in `src/pages/InitializeIdentityPage.jsx`.
 
 Ensure you have your **Service ID**, **Template ID**, and **Public Key** updated in the code:
-- `service_ha6wjpt`
-- `template_j1ctgph`
-- `mJ8q6uBoj9Eg_OYot`
+- `service_******`
+- `template_******`
+- `***************`
 
 *Note: For production, we recommend moving these to environment variables.*
 
