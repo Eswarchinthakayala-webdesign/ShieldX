@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronDown, ShieldAlert, Cpu, Lock, Globe } from 'lucide-react';
 import Logo from './Logo';
@@ -14,6 +15,8 @@ const StatItem = ({ icon: Icon, label, value }) => (
 );
 
 const Hero = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center pt-20 pb-12 overflow-hidden px-4">
       {/* Background Ambience */}
@@ -68,7 +71,10 @@ const Hero = () => {
            transition={{ delay: 0.8, duration: 1 }}
            className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center items-center mb-16 px-4 w-full sm:w-auto"
         >
-          <button className="w-full cursor-pointer sm:w-auto relative group px-10 py-3 bg-[#ff1e1e] text-white rounded-full font-bold overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 red-glow text-sm sm:text-base">
+          <button 
+            onClick={() => navigate('/signup')}
+            className="w-full cursor-pointer sm:w-auto relative group px-10 py-3 bg-[#ff1e1e] text-white rounded-full font-bold overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 red-glow text-sm sm:text-base"
+          >
             <span className="relative z-10 flex items-center justify-center gap-2">
               <Lock size={18} />
               GET STARTED SECURELY
@@ -76,7 +82,10 @@ const Hero = () => {
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           </button>
           
-          <button className="w-full cursor-pointer sm:w-auto px-10 py-3 bg-white/5 backdrop-blur-md border border-white/10 text-white rounded-full font-bold hover:bg-white/10 transition-all duration-300 flex items-center justify-center gap-2 group text-sm sm:text-base">
+          <button 
+            onClick={() => navigate('/architecture')}
+            className="w-full cursor-pointer sm:w-auto px-10 py-3 bg-white/5 backdrop-blur-md border border-white/10 text-white rounded-full font-bold hover:bg-white/10 transition-all duration-300 flex items-center justify-center gap-2 group text-sm sm:text-base"
+          >
             VIEW ARCHITECTURE
             <ChevronDown size={18} className="transition-transform group-hover:translate-y-1" />
           </button>
