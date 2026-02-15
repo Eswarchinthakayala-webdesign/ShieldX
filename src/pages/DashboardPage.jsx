@@ -224,6 +224,18 @@ const DashboardPage = () => {
                     return prev;
                 });
             })
+            .on('postgres_changes', { 
+                event: 'DELETE', 
+                schema: 'public', 
+                table: 'messages',
+                filter: `conversation_id=eq.${selectedConversation.id}`
+            }, (payload) => {
+                const deletedId = payload.old?.id;
+                if (deletedId) {
+                    console.log("Lattice Payload Purged:", deletedId);
+                    setMessages(prev => prev.filter(m => m.id !== deletedId));
+                }
+            })
             .subscribe((status) => {
                 console.log("Tunnel Subscription Status:", status);
             });
