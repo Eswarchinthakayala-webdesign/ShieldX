@@ -27,8 +27,14 @@ ShieldX is a next-generation decentralized identity and secure communication pla
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/shieldx.git
-    cd shieldx
+    git clone https://github.com/Eswarchinthakayala-webdesign/ShieldX.git
+    cd ShieldX
+    ```
+
+    *Or if initializing an existing local repository:*
+    ```bash
+    git init
+    git remote add origin https://github.com/Eswarchinthakayala-webdesign/ShieldX.git
     ```
 
 2.  **Install dependencies**
