@@ -11,6 +11,7 @@ import supabase from '../utils/supabase';
 import { ShieldXCrypto } from '../utils/crypto';
 import { toast } from 'sonner';
 
+import { summarizeChat } from '../utils/ai';
 import BackgroundEffects from '../components/dashboard/BackgroundEffects';
 import StatCard from '../components/dashboard/StatCard';
 import Sidebar from '../components/dashboard/Sidebar';
@@ -19,13 +20,15 @@ import IdentityUnlockOverlay from '../components/dashboard/IdentityUnlockOverlay
 import HudHeader from '../components/dashboard/HudHeader';
 import ChatView from '../components/dashboard/ChatView';
 import DashboardTab from '../components/dashboard/DashboardTab';
+import SummariesTab from '../components/dashboard/SummariesTab';
 import UsersTab from '../components/dashboard/UsersTab';
 import SettingsTab from '../components/dashboard/SettingsTab';
+import UsageTab from '../components/dashboard/UsageTab';
 
 const DashboardPage = () => {
     const { tab, chatUser } = useParams();
     const navigate = useNavigate();
-    const validTabs = ['stats', 'messages', 'users', 'settings'];
+    const validTabs = ['stats', 'messages', 'users', 'settings', 'summaries', 'usage'];
     const { user, signOut } = useAuth();
     const [activeTab, setActiveTab] = useState(() => {
         return validTabs.includes(tab) ? tab : 'messages';
@@ -37,6 +40,7 @@ const DashboardPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [selectedConversation, setSelectedConversation] = useState(null);
+    const [selectedSummaryId, setSelectedSummaryId] = useState(null); // New state for auto-selecting summary
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [sending, setSending] = useState(false);
@@ -398,6 +402,77 @@ const DashboardPage = () => {
             toast.success(`Privacy Mask ${newStatus ? 'Lowered' : 'Engaged'}.`);
         } catch (error) {
             toast.error("Privacy Protocol Failure.");
+        }
+    };
+
+    const handleSummarize = async () => {
+        if (!selectedConversation || !decryptedPrivateKey) return;
+
+        toast.loading("Intercepting & Summarizing Payload...", { id: 'summary' });
+        try {
+            const { data: msgsData, error: msgError } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('conversation_id', selectedConversation.id)
+                .order('created_at', { ascending: false })
+                .limit(200);
+
+            if (msgError) throw msgError;
+
+            // Decrypt messages for AI context
+            const decryptedMsgs = await Promise.all(msgsData.reverse().map(async (msg) => {
+                 try {
+                    const keyShard = msg.sender_id === user.id ? msg.encrypted_aes_key_sender : msg.encrypted_aes_key;
+                    const plaintext = await ShieldXCrypto.decryptMessage(
+                        { 
+                            encryptedMessage: msg.encrypted_message, 
+                            encryptedAesKey: keyShard, 
+                            iv: msg.iv 
+                        }, 
+                        decryptedPrivateKey
+                    );
+                    
+                    // Add sender info for clearer summary
+                    const isMe = msg.sender_id === user.id;
+                    return { 
+                        ...msg, 
+                        content: plaintext,
+                        sender_id: isMe ? 'me' : 'other'
+                    };
+                } catch (e) {
+                    return null;
+                }
+            }));
+
+            const validMsgs = decryptedMsgs.filter(m => m !== null);
+
+            if (validMsgs.length === 0) {
+                throw new Error("No decryptable messages found to summarize.");
+            }
+
+            const summaryMarkdown = await summarizeChat(validMsgs, user.id);
+
+            const { data: summaryData, error: sumError } = await supabase
+                .from('chat_summaries')
+                .insert([{
+                    user_id: user.id,
+                    conversation_id: selectedConversation.id,
+                    summary_markdown: summaryMarkdown,
+                    message_count: validMsgs.length
+                }])
+                .select()
+                .single();
+
+            if (sumError) throw sumError;
+
+            toast.success("Summary Generated.", { id: 'summary' });
+            setSelectedSummaryId(summaryData.id);
+            setActiveTab('summaries'); // Switch to summaries tab
+            setMobileSheetOpen(false); // Close mobile sheet if open
+
+        } catch (error) {
+            console.error("Summary Failed:", error);
+            toast.error(`Summary Protocol Failed: ${error.message}`, { id: 'summary' });
         }
     };
 
@@ -798,6 +873,7 @@ const DashboardPage = () => {
                             selectedConversation={selectedConversation}
                             setSelectedConversation={selectConversation}
                             messages={messages}
+                            onSummarize={handleSummarize}
                             messagesEndRef={messagesEndRef}
                             newMessage={newMessage}
                             setNewMessage={setNewMessage}
@@ -845,6 +921,22 @@ const DashboardPage = () => {
                             togglePrivacy={togglePrivacy}
                             signOut={signOut}
                         />
+                    )}
+
+                    {/* ===== SUMMARIES TAB ===== */}
+                    {activeTab === 'summaries' && (
+                        <SummariesTab 
+                            selectedSummaryId={selectedSummaryId} 
+                            onOpenChat={(conv) => {
+                                setSelectedConversation(conv);
+                                setActiveTab('messages');
+                            }}
+                        />
+                    )}
+
+                    {/* ===== USAGE TAB ===== */}
+                    {activeTab === 'usage' && (
+                        <UsageTab />
                     )}
                 </div>
             </main>

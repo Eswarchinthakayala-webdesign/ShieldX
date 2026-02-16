@@ -11,6 +11,7 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import InitializeIdentityPage from './pages/InitializeIdentityPage'
 import DashboardPage from './pages/DashboardPage'
+import SummaryPage from './pages/SummaryPage'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicRoute from './components/PublicRoute'
@@ -34,6 +35,10 @@ const router=createBrowserRouter([
       {
         path: "/dashboard/:tab/:chatUser",
         element: <ProtectedRoute><DashboardPage /></ProtectedRoute>
+      },
+      {
+        path: "/dashboard/summary/:id",
+        element: <ProtectedRoute><SummaryPage /></ProtectedRoute>
       },
       {
         path: "/protocol",
