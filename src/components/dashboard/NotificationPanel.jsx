@@ -56,23 +56,12 @@ const NotificationPanel = ({
         }
     }, [readIds, user?.id]);
 
-    // Keep conversations in a ref so the subscription callback always has latest data
-    const conversationsRef = useRef(conversations);
-    useEffect(() => {
-        conversationsRef.current = conversations;
-    }, [conversations]);
-
-    // Track conversation IDs to only re-subscribe when they actually change
-    const prevConvIdsRef = useRef('');
-
     // Fetch recent messages from all conversations (not sent by current user)
     useEffect(() => {
         if (!user || !conversations || conversations.length === 0) return;
 
         const convIds = conversations.map(c => c.id);
-        const convIdsKey = convIds.sort().join(',');
 
-        // Fetch initial notifications
         const fetchNotifications = async () => {
             const { data, error } = await supabase
                 .from('messages')
@@ -84,7 +73,7 @@ const NotificationPanel = ({
 
             if (!error && data) {
                 const enriched = data.map(msg => {
-                    const conv = conversationsRef.current.find(c => c.id === msg.conversation_id);
+                    const conv = conversations.find(c => c.id === msg.conversation_id);
                     const isUserOne = conv?.user_one === user.id;
                     const senderProfile = isUserOne ? conv?.user_two_profile : conv?.user_one_profile;
                     return {
@@ -100,46 +89,41 @@ const NotificationPanel = ({
 
         fetchNotifications();
 
-        // Only re-subscribe if conversation IDs actually changed
-        if (prevConvIdsRef.current === convIdsKey) return;
-        prevConvIdsRef.current = convIdsKey;
+        // Real-time subscription for new messages across all conversations
+        const channels = convIds.map(convId => {
+            return supabase
+                .channel(`notif:${convId}`)
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `conversation_id=eq.${convId}`
+                }, (payload) => {
+                    const msg = payload.new;
+                    if (msg.sender_id === user.id) return;
 
-        // Single real-time channel for all notification messages
-        const channel = supabase
-            .channel(`notif-global-${user.id}`)
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-            }, (payload) => {
-                const msg = payload.new;
-                if (msg.sender_id === user.id) return;
+                    const conv = conversations.find(c => c.id === msg.conversation_id);
+                    const isUserOne = conv?.user_one === user.id;
+                    const senderProfile = isUserOne ? conv?.user_two_profile : conv?.user_one_profile;
 
-                const currentConvs = conversationsRef.current;
-                const conv = currentConvs.find(c => c.id === msg.conversation_id);
-                if (!conv) return; // Not one of our conversations
+                    const enrichedMsg = {
+                        ...msg,
+                        senderName: senderProfile?.full_name || senderProfile?.name || senderProfile?.email?.split('@')[0] || 'Unknown',
+                        senderAvatar: senderProfile?.avatar_url,
+                        conversation: conv
+                    };
 
-                const isUserOne = conv.user_one === user.id;
-                const senderProfile = isUserOne ? conv.user_two_profile : conv.user_one_profile;
-
-                const enrichedMsg = {
-                    ...msg,
-                    senderName: senderProfile?.full_name || senderProfile?.name || senderProfile?.email?.split('@')[0] || 'Unknown',
-                    senderAvatar: senderProfile?.avatar_url,
-                    conversation: conv
-                };
-
-                setNotifications(prev => {
-                    const exists = prev.find(n => n.id === msg.id);
-                    if (exists) return prev;
-                    return [enrichedMsg, ...prev].slice(0, 30);
-                });
-            })
-            .subscribe();
+                    setNotifications(prev => {
+                        const exists = prev.find(n => n.id === msg.id);
+                        if (exists) return prev;
+                        return [enrichedMsg, ...prev].slice(0, 30);
+                    });
+                })
+                .subscribe();
+        });
 
         return () => {
-            supabase.removeChannel(channel);
-            prevConvIdsRef.current = '';
+            channels.forEach(ch => supabase.removeChannel(ch));
         };
     }, [user, conversations]);
 

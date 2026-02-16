@@ -149,10 +149,6 @@ const DashboardPage = () => {
 
         const decryptBuffer = async (msgs) => {
             const processed = await Promise.all(msgs.map(async (msg) => {
-                // Handle soft-deleted messages
-                if (!msg.encrypted_message) {
-                    return { ...msg, content: null, isDeleted: true };
-                }
                 try {
                     const keyShard = msg.sender_id === user.id ? msg.encrypted_aes_key_sender : msg.encrypted_aes_key;
                     
@@ -197,6 +193,7 @@ const DashboardPage = () => {
                 filter: `conversation_id=eq.${selectedConversation.id}`
             }, async (payload) => {
                 const msg = payload.new;
+                // ... (existing INSERT logic)
                 console.log("Lattice Packet Received:", msg.id);
 
                 setMessages(prev => {
@@ -229,33 +226,14 @@ const DashboardPage = () => {
                 });
             })
             .on('postgres_changes', { 
-                event: 'UPDATE', 
-                schema: 'public', 
-                table: 'messages',
-                filter: `conversation_id=eq.${selectedConversation.id}`
-            }, (payload) => {
-                const updated = payload.new;
-                if (updated && updated.encrypted_message === null) {
-                    // Message was soft-deleted
-                    console.log("Lattice Payload Purged:", updated.id);
-                    setMessages(prev => prev.map(m => 
-                        m.id === updated.id 
-                            ? { ...m, content: null, isDeleted: true } 
-                            : m
-                    ));
-                }
-            })
-            .on('postgres_changes', { 
                 event: 'DELETE', 
                 schema: 'public', 
                 table: 'messages',
                 filter: `conversation_id=eq.${selectedConversation.id}`
             }, (payload) => {
-                const deletedId = payload.old?.id;
-                if (deletedId) {
-                    console.log("Lattice Payload Hard Purged:", deletedId);
-                    setMessages(prev => prev.filter(m => m.id !== deletedId));
-                }
+                const deletedId = payload.old.id;
+                console.log("Lattice Packet Incinerated:", deletedId);
+                setMessages(prev => prev.filter(m => m.id !== deletedId));
             })
             .subscribe((status) => {
                 console.log("Tunnel Subscription Status:", status);
@@ -361,50 +339,6 @@ const DashboardPage = () => {
         }
     };
 
-    // Soft-delete a single message (nullify content, keep row as placeholder)
-    const deleteMessage = async (messageId) => {
-        try {
-            const { error } = await supabase
-                .from('messages')
-                .update({ 
-                    encrypted_message: null, 
-                    encrypted_aes_key: null, 
-                    encrypted_aes_key_sender: null, 
-                    iv: null 
-                })
-                .eq('id', messageId);
-            
-            if (error) throw error;
-            setMessages(prev => prev.map(m => 
-                m.id === messageId 
-                    ? { ...m, content: null, isDeleted: true } 
-                    : m
-            ));
-            toast.success('Payload purged from lattice.');
-        } catch (error) {
-            console.error('Delete Failed:', error);
-            toast.error('Failed to purge payload.');
-        }
-    };
-
-    // Clear all messages in current conversation
-    const clearChat = async () => {
-        if (!selectedConversation) return;
-        try {
-            const { error } = await supabase
-                .from('messages')
-                .delete()
-                .eq('conversation_id', selectedConversation.id);
-            
-            if (error) throw error;
-            setMessages([]);
-            toast.success('Tunnel history purged successfully.');
-        } catch (error) {
-            console.error('Clear Chat Failed:', error);
-            toast.error('Failed to purge tunnel history.');
-        }
-    };
-
     const sendRequest = async (receiverId) => {
         try {
             if (receiverId === user.id) return;
@@ -464,6 +398,43 @@ const DashboardPage = () => {
             toast.success(`Privacy Mask ${newStatus ? 'Lowered' : 'Engaged'}.`);
         } catch (error) {
             toast.error("Privacy Protocol Failure.");
+        }
+    };
+
+    // ========== DELETE MESSAGE ==========
+    const handleDeleteMessage = async (messageId) => {
+        try {
+            const { error } = await supabase
+                .from('messages')
+                .delete()
+                .eq('id', messageId);
+            
+            if (error) throw error;
+            
+            // Remove from local state immediately
+            setMessages(prev => prev.filter(m => m.id !== messageId));
+            toast.success('Message purged from tunnel.');
+        } catch (error) {
+            toast.error(`Purge failure: ${error.message}`);
+        }
+    };
+
+    // ========== CLEAR CHAT ==========
+    const handleClearChat = async (conversationId) => {
+        if (!conversationId) return;
+        try {
+            const { error } = await supabase
+                .from('messages')
+                .delete()
+                .eq('conversation_id', conversationId);
+            
+            if (error) throw error;
+            
+            // Clear local state immediately
+            setMessages([]);
+            toast.success('Chat history purged successfully.');
+        } catch (error) {
+            toast.error(`Chat purge failure: ${error.message}`);
         }
     };
 
@@ -841,8 +812,8 @@ const DashboardPage = () => {
                             conversations={conversations}
                             onDiscoverNodes={() => handleTabChange('users')}
                             loadingMessages={loadingMessages}
-                            deleteMessage={deleteMessage}
-                            clearChat={clearChat}
+                            deleteMessage={handleDeleteMessage}
+                            clearChat={handleClearChat}
                         />
                     )}
 

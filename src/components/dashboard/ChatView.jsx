@@ -653,7 +653,7 @@ const ChatView = ({
                         </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => {
-                                clearChat();
+                                clearChat(selectedConversation?.id);
                                 setClearChatDialogOpen(false);
                             }}
                             className="bg-[#ff1e1e] hover:bg-[#ff1e1e]/80 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl px-5 border-0"
